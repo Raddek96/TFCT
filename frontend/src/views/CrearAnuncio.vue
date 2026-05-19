@@ -6,7 +6,7 @@ import { useAuth } from '../composables/useAuth'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const router = useRouter()
-const { getAuthHeaders } = useAuth()
+const { getAuthHeaders, user } = useAuth()
 
 const loading = ref(false)
 const error = ref('')
@@ -15,13 +15,13 @@ const success = ref('')
 const form = ref({
   titulo: '',
   descripcion: '',
-  precio: '',
+  precio_mes: '',
   localizacion: '',
   tipo_vivienda: '',
-  duracion_minima: '',
-  duracion_maxima: '',
-  telefono: '',
-  email: '',
+  duracion_min_meses: '',
+  duracion_max_meses: '',
+  telefono_contacto: '',
+  email_contacto: user.value?.email || '',
   wifi: false,
   terraza: false,
   garaje: false,
@@ -31,17 +31,28 @@ const handleSubmit = async () => {
   error.value = ''
   success.value = ''
 
-  if (!form.value.titulo || !form.value.descripcion || !form.value.precio || !form.value.localizacion) {
-    error.value = 'Rellena título, descripción, precio y localización.'
+  if (!form.value.titulo || !form.value.descripcion || !form.value.precio_mes || !form.value.localizacion) {
+    error.value = 'Please fill in all required fields (Title, Description, Price, and Location).'
     return
   }
 
   loading.value = true
 
   try {
+    // We use pure JSON because your Django AnuncioSerializer expects JSON, not FormData
     const payload = {
-      ...form.value,
-      precio: Number(form.value.precio),
+      titulo: form.value.titulo,
+      descripcion: form.value.descripcion,
+      precio_mes: Number(form.value.precio_mes),
+      localizacion: form.value.localizacion,
+      tipo_vivienda: form.value.tipo_vivienda || 'habitacion',
+      duracion_min_meses: form.value.duracion_min_meses ? Number(form.value.duracion_min_meses) : 3,
+      duracion_max_meses: form.value.duracion_max_meses ? Number(form.value.duracion_max_meses) : 6,
+      telefono_contacto: form.value.telefono_contacto,
+      email_contacto: form.value.email_contacto,
+      wifi: form.value.wifi,
+      terraza: form.value.terraza,
+      garaje: form.value.garaje
     }
 
     const response = await fetch(`${API_URL}/api/anuncios/`, {
@@ -53,24 +64,28 @@ const handleSubmit = async () => {
       body: JSON.stringify(payload),
     })
 
-    const data = await response.json()
+    let data = {}
+    try {
+      data = await response.json()
+    } catch {
+      data = {}
+    }
 
     if (!response.ok) {
       throw new Error(
         data.detail ||
         data.error ||
         data.titulo?.[0] ||
-        data.descripcion?.[0] ||
-        data.precio?.[0] ||
-        'No se pudo crear el anuncio.'
+        'Server error. Could not create the listing.'
       )
     }
 
-    success.value = 'Anuncio creado correctamente.'
+    success.value = 'Listing submitted successfully. It is now pending administrator approval.'
 
     setTimeout(() => {
-      router.push(`/anuncio/${data.id}`)
-    }, 1000)
+      router.push(`/`)
+    }, 2000)
+    
   } catch (err) {
     error.value = err.message
   } finally {
@@ -80,218 +95,116 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <section class="max-w-5xl mx-auto px-4 py-12">
+  <main class="max-w-3xl mx-auto px-4 py-12">
+    
     <div class="mb-8">
-      <div class="inline-flex items-center gap-2 bg-white/10 border border-white/10 rounded-full px-4 py-2 mb-5">
-        <span class="w-2 h-2 rounded-full bg-primary"></span>
-        <span class="text-sm text-gray-300">
-          Nuevo anuncio
-        </span>
-      </div>
+      <button @click="router.back()" class="text-sm font-medium text-slate-500 hover:text-slate-900 mb-6 flex items-center gap-2 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        Back to Listings
+      </button>
 
-      <h1 class="text-4xl md:text-5xl font-black tracking-tight mb-4">
-        Publicar alojamiento
-      </h1>
-
-      <p class="text-gray-300 max-w-2xl">
-        Crea un anuncio para que otros estudiantes puedan encontrar tu alojamiento.
-      </p>
+      <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Create New Listing</h1>
+      <p class="text-sm text-slate-500 mt-2">Fill in the details below to list your property on ErasmusStay.</p>
     </div>
 
-    <form
-      class="card-dark p-6 md:p-8 space-y-8"
-      @submit.prevent="handleSubmit"
-    >
-      <div>
-        <h2 class="text-2xl font-bold mb-5">
-          Información principal
-        </h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div class="md:col-span-2">
-            <label class="block text-sm text-gray-400 mb-2">
-              Título
-            </label>
-
-            <input
-              v-model="form.titulo"
-              type="text"
-              class="input-dark"
-              placeholder="Habitación luminosa en Sliema"
-            />
-          </div>
-
+    <form @submit.prevent="handleSubmit" class="space-y-10">
+      
+      <section>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Basic Information</h2>
+        <div class="space-y-5">
           <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Precio mensual
-            </label>
-
-            <input
-              v-model="form.precio"
-              type="number"
-              min="0"
-              class="input-dark"
-              placeholder="550"
-            />
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Title *</label>
+            <input v-model="form.titulo" type="text" placeholder="e.g. Bright Studio in Sliema" required class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900" />
           </div>
-
           <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Localización
-            </label>
-
-            <input
-              v-model="form.localizacion"
-              type="text"
-              class="input-dark"
-              placeholder="Sliema"
-            />
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Description *</label>
+            <textarea v-model="form.descripcion" rows="5" placeholder="Describe the property, neighborhood, rules..." required class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 resize-none"></textarea>
           </div>
-
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Tipo de vivienda
-            </label>
-
-            <select
-              v-model="form.tipo_vivienda"
-              class="input-dark"
-            >
-              <option value="">Selecciona una opción</option>
-              <option value="habitacion">Habitación</option>
-              <option value="piso">Piso completo</option>
-              <option value="estudio">Estudio</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Duración mínima
-            </label>
-
-            <input
-              v-model="form.duracion_minima"
-              type="text"
-              class="input-dark"
-              placeholder="3 meses"
-            />
-          </div>
-
-          <div class="md:col-span-2">
-            <label class="block text-sm text-gray-400 mb-2">
-              Descripción
-            </label>
-
-            <textarea
-              v-model="form.descripcion"
-              rows="6"
-              class="input-dark resize-none"
-              placeholder="Describe el alojamiento, la zona, normas, gastos incluidos..."
-            ></textarea>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Location *</label>
+              <input v-model="form.localizacion" type="text" placeholder="e.g. Sliema, Malta" required class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Property Type</label>
+              <select v-model="form.tipo_vivienda" class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 bg-white">
+                <option value="habitacion">Single Room</option>
+                <option value="piso_completo">Full Flat</option>
+                <option value="estudio">Private Studio</option>
+              </select>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div>
-        <h2 class="text-2xl font-bold mb-5">
-          Servicios
-        </h2>
-
-        <div class="flex flex-wrap gap-3">
-          <label class="flex items-center gap-2 text-sm text-gray-300 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <input
-              v-model="form.wifi"
-              type="checkbox"
-              class="accent-[#e94560]"
-            />
-            Wifi
-          </label>
-
-          <label class="flex items-center gap-2 text-sm text-gray-300 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <input
-              v-model="form.terraza"
-              type="checkbox"
-              class="accent-[#e94560]"
-            />
-            Terraza
-          </label>
-
-          <label class="flex items-center gap-2 text-sm text-gray-300 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <input
-              v-model="form.garaje"
-              type="checkbox"
-              class="accent-[#e94560]"
-            />
-            Garaje
-          </label>
-        </div>
-      </div>
-
-      <div>
-        <h2 class="text-2xl font-bold mb-5">
-          Contacto
-        </h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <section>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Pricing & Stay Rules</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Teléfono
-            </label>
-
-            <input
-              v-model="form.telefono"
-              type="text"
-              class="input-dark"
-              placeholder="+356 0000 0000"
-            />
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Monthly Price (€) *</label>
+            <input v-model="form.precio_mes" type="number" min="0" placeholder="e.g. 500" required class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900" />
           </div>
-
           <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Email
-            </label>
-
-            <input
-              v-model="form.email"
-              type="email"
-              class="input-dark"
-              placeholder="contacto@email.com"
-            />
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Min Stay (Months)</label>
+            <input v-model="form.duracion_min_meses" type="number" min="1" placeholder="e.g. 3" class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Max Stay (Months)</label>
+            <input v-model="form.duracion_max_meses" type="number" min="1" placeholder="e.g. 10" class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900" />
           </div>
         </div>
-      </div>
+      </section>
 
-      <div
-        v-if="error"
-        class="bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl p-4 text-sm"
-      >
-        {{ error }}
-      </div>
+      <section>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Features & Amenities</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <label class="flex items-center gap-3 p-3 border border-slate-200 rounded cursor-pointer hover:bg-slate-50 transition">
+            <input v-model="form.wifi" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
+            <span class="text-sm font-medium text-slate-700">Wifi</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 border border-slate-200 rounded cursor-pointer hover:bg-slate-50 transition">
+            <input v-model="form.terraza" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
+            <span class="text-sm font-medium text-slate-700">Terrace</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 border border-slate-200 rounded cursor-pointer hover:bg-slate-50 transition">
+            <input v-model="form.garaje" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
+            <span class="text-sm font-medium text-slate-700">Garage</span>
+          </label>
+        </div>
+      </section>
 
-      <div
-        v-if="success"
-        class="bg-green-500/10 border border-green-500/30 text-green-300 rounded-xl p-4 text-sm"
-      >
-        {{ success }}
-      </div>
+      <section>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Contact Details</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Contact Phone</label>
+            <input v-model="form.telefono_contacto" type="text" placeholder="+356 XX XXXXXX" class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Contact Email</label>
+            <input v-model="form.email_contacto" type="email" placeholder="host@example.com" class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900" />
+          </div>
+        </div>
+      </section>
 
-      <div class="flex flex-col sm:flex-row gap-3 sm:justify-end">
-        <router-link
-          to="/anuncios"
-          class="btn-secondary text-center"
-        >
-          Cancelar
-        </router-link>
+      <section>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Property Photos</h2>
+        <div class="border border-slate-200 bg-slate-50 rounded-lg p-6 text-center">
+          <svg class="w-8 h-8 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <p class="text-sm font-medium text-slate-600 mb-1">Image uploads are managed externally.</p>
+          <p class="text-xs text-slate-500">The current system version handles images via URL parameters. Please contact the administrator to attach URLs to your listing.</p>
+        </div>
+      </section>
 
-        <button
-          type="submit"
-          class="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
-          :disabled="loading"
-        >
-          <span v-if="loading">Publicando...</span>
-          <span v-else>Publicar anuncio</span>
+      <div v-if="error" class="bg-red-50 border border-red-200 text-red-600 rounded p-4 text-sm">{{ error }}</div>
+      <div v-if="success" class="bg-green-50 border border-green-200 text-green-700 rounded p-4 text-sm font-medium">{{ success }}</div>
+
+      <div class="pt-6 border-t border-slate-200">
+        <button type="submit" class="w-full bg-slate-900 text-white font-bold py-4 rounded hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition" :disabled="loading">
+          {{ loading ? 'Uploading Listing...' : 'Publish Listing' }}
         </button>
       </div>
+
     </form>
-  </section>
+  </main>
 </template>

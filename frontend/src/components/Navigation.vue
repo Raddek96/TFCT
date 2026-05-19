@@ -1,12 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
 const menuOpen = ref(false)
 
-const { user, isAuthenticated, loadingAuth, logout } = useAuth()
+const { user, isAuthenticated, logout } = useAuth()
 
 const closeMenu = () => {
   menuOpen.value = false
@@ -17,211 +17,94 @@ const handleLogout = () => {
   closeMenu()
   router.push('/')
 }
+
+// Flexible role logic supporting native admin username or role text
+const isAdmin = computed(() => {
+  return isAuthenticated.value && (user.value?.rol === 'administrador' || user.value?.username === 'admin')
+})
+
+const canPublish = computed(() => {
+  if (!isAuthenticated.value) return false
+  return ['propietario', 'administrador'].includes(user.value?.rol) || user.value?.username === 'admin'
+})
+
+// Visual mapping to keep the UI strictly in English
+const displayRole = computed(() => {
+  if (!user.value?.rol) return 'User'
+  const role = user.value.rol.toLowerCase().trim()
+  if (role === 'administrador') return 'Admin'
+  if (role === 'propietario') return 'Owner'
+  if (role === 'estudiante') return 'Student'
+  return 'User'
+})
 </script>
 
 <template>
-  <header class="sticky top-0 z-50 border-b border-white/10 bg-[#1a1a2e]/75 backdrop-blur-xl">
-    <nav class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-      <router-link
-        to="/"
-        class="flex items-center gap-3"
-        @click="closeMenu"
-      >
-        <div class="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-          <span class="font-black text-white">E</span>
-        </div>
-
-        <div>
-          <p class="text-white font-black text-xl leading-none">
-            ErasmusStay
-          </p>
-          <p class="text-gray-400 text-xs mt-1">
-            Malta student housing
-          </p>
-        </div>
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+    <nav class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      
+      <router-link to="/" class="flex items-center gap-2" @click="closeMenu">
+        <span class="font-bold text-xl text-slate-900 tracking-tight">Erasmus<span class="text-slate-600">Stay</span></span>
       </router-link>
 
-      <div class="hidden md:flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-2 py-2">
-        <router-link
-          to="/"
-          class="px-4 py-2 rounded-full text-sm text-gray-300 hover:text-white hover:bg-white/10"
-          active-class="bg-primary text-white"
-        >
-          Inicio
-        </router-link>
-
-        <router-link
-          to="/anuncios"
-          class="px-4 py-2 rounded-full text-sm text-gray-300 hover:text-white hover:bg-white/10"
-          active-class="bg-primary text-white"
-        >
-          Anuncios
-        </router-link>
-
-        <router-link
-          to="/contacto"
-          class="px-4 py-2 rounded-full text-sm text-gray-300 hover:text-white hover:bg-white/10"
-          active-class="bg-primary text-white"
-        >
-          Contacto
-        </router-link>
+      <div class="hidden md:flex items-center gap-6">
+        <router-link to="/" class="text-sm font-medium text-slate-600 hover:text-slate-900" active-class="text-slate-900 font-semibold">Home</router-link>
+        <router-link to="/anuncios" class="text-sm font-medium text-slate-600 hover:text-slate-900" active-class="text-slate-900 font-semibold">Accommodations</router-link>
+        <router-link to="/contacto" class="text-sm font-medium text-slate-600 hover:text-slate-900" active-class="text-slate-900 font-semibold">Contact</router-link>
+        
+        <router-link v-if="isAdmin" to="/admin-panel" class="text-sm font-medium text-blue-600 hover:text-blue-700" active-class="text-blue-700 font-semibold">Admin Panel</router-link>
       </div>
 
       <div class="hidden md:flex items-center gap-3">
-        <span
-          v-if="loadingAuth"
-          class="text-sm text-gray-400"
-        >
-          Cargando...
-        </span>
-
-        <template v-else-if="isAuthenticated">
-          <router-link
-            to="/crear-anuncio"
-            class="btn-primary py-2"
-          >
-            Publicar anuncio
+        <template v-if="isAuthenticated">
+          <router-link to="/profile" class="text-sm font-medium text-slate-600 hover:text-slate-900 mr-2" active-class="text-slate-900 font-semibold">
+            My Profile
           </router-link>
 
-          <div class="text-right">
-            <p class="text-sm text-white">
-              {{ user?.username || user?.email || 'Usuario' }}
-            </p>
-            <p class="text-xs text-gray-400">
-              Sesión activa
-            </p>
+          <router-link v-if="canPublish" to="/crear-anuncio" class="text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded hover:bg-slate-800 transition">
+            Publish Listing
+          </router-link>
+          
+          <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
+            <div class="text-right">
+              <p class="text-sm font-bold text-slate-900 leading-none">{{ user?.username }}</p>
+              <p class="text-xs text-slate-400 mt-1">{{ displayRole }}</p>
+            </div>
+            <button @click="handleLogout" class="text-sm text-slate-500 hover:text-red-600 font-medium transition-colors">Logout</button>
           </div>
-
-          <button
-            type="button"
-            class="btn-secondary py-2"
-            @click="handleLogout"
-          >
-            Salir
-          </button>
         </template>
 
         <template v-else>
-          <router-link
-            to="/login"
-            class="btn-secondary py-2"
-          >
-            Entrar
+          <router-link to="/login" class="text-sm font-medium bg-slate-100 text-slate-900 px-5 py-2 rounded hover:bg-slate-200 transition">
+            Login
           </router-link>
-
-          <router-link
-            to="/register"
-            class="btn-primary py-2"
-          >
-            Crear cuenta
+          <router-link to="/register" class="text-sm font-medium bg-slate-900 text-white px-5 py-2 rounded hover:bg-slate-800 transition">
+            Register
           </router-link>
         </template>
       </div>
 
-      <button
-        class="md:hidden w-11 h-11 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-2xl"
-        type="button"
-        aria-label="Abrir menú"
-        @click="menuOpen = !menuOpen"
-      >
-        <span v-if="!menuOpen">☰</span>
-        <span v-else>×</span>
+      <button class="md:hidden text-slate-900 p-1" @click="menuOpen = !menuOpen">
+        <svg v-if="!menuOpen" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
       </button>
     </nav>
 
-    <transition
-      enter-active-class="transition duration-200 ease-out"
-      enter-from-class="opacity-0 -translate-y-2"
-      enter-to-class="opacity-100 translate-y-0"
-      leave-active-class="transition duration-150 ease-in"
-      leave-from-class="opacity-100 translate-y-0"
-      leave-to-class="opacity-0 -translate-y-2"
-    >
-      <div
-        v-if="menuOpen"
-        class="md:hidden mx-4 mb-4 card-dark p-4 space-y-3"
-      >
-        <router-link
-          to="/"
-          class="block px-4 py-3 rounded-xl hover:bg-white/10"
-          active-class="bg-primary text-white"
-          @click="closeMenu"
-        >
-          Inicio
-        </router-link>
-
-        <router-link
-          to="/anuncios"
-          class="block px-4 py-3 rounded-xl hover:bg-white/10"
-          active-class="bg-primary text-white"
-          @click="closeMenu"
-        >
-          Anuncios
-        </router-link>
-
-        <router-link
-          to="/contacto"
-          class="block px-4 py-3 rounded-xl hover:bg-white/10"
-          active-class="bg-primary text-white"
-          @click="closeMenu"
-        >
-          Contacto
-        </router-link>
-
-        <div class="pt-3 border-t border-white/10">
-          <span
-            v-if="loadingAuth"
-            class="block text-sm text-gray-400"
-          >
-            Cargando...
-          </span>
-
-          <template v-else-if="isAuthenticated">
-            <div class="mb-4 px-4">
-              <p class="text-sm text-white">
-                {{ user?.username || user?.email || 'Usuario' }}
-              </p>
-              <p class="text-xs text-gray-400">
-                Sesión activa
-              </p>
-            </div>
-
-            <router-link
-              to="/crear-anuncio"
-              class="block text-center btn-primary mb-3"
-              @click="closeMenu"
-            >
-              Publicar anuncio
-            </router-link>
-
-            <button
-              type="button"
-              class="w-full btn-secondary"
-              @click="handleLogout"
-            >
-              Cerrar sesión
-            </button>
-          </template>
-
-          <template v-else>
-            <router-link
-              to="/login"
-              class="block text-center btn-secondary mb-3"
-              @click="closeMenu"
-            >
-              Entrar
-            </router-link>
-
-            <router-link
-              to="/register"
-              class="block text-center btn-primary"
-              @click="closeMenu"
-            >
-              Crear cuenta
-            </router-link>
-          </template>
-        </div>
+    <div v-if="menuOpen" class="md:hidden bg-white border-t border-slate-200 p-4 space-y-3 shadow-sm">
+      <router-link to="/" class="block text-slate-600 font-medium" @click="closeMenu">Home</router-link>
+      <router-link to="/anuncios" class="block text-slate-600 font-medium" @click="closeMenu">Accommodations</router-link>
+      <router-link to="/contacto" class="block text-slate-600 font-medium" @click="closeMenu">Contact</router-link>
+      <router-link v-if="isAdmin" class="block text-blue-600 font-medium" to="/admin-panel" @click="closeMenu">Admin Panel</router-link>
+      <router-link v-if="isAuthenticated" class="block text-slate-600 font-medium" to="/profile" @click="closeMenu">My Profile</router-link>
+      
+      <div class="pt-4 border-t border-slate-100 flex flex-col gap-2" v-if="!isAuthenticated">
+        <router-link to="/login" class="text-center bg-slate-100 text-slate-900 py-2 rounded font-medium" @click="closeMenu">Login</router-link>
+        <router-link to="/register" class="text-center bg-slate-900 text-white py-2 rounded font-medium" @click="closeMenu">Register</router-link>
       </div>
-    </transition>
+      <div class="pt-4 border-t border-slate-100 flex flex-col gap-2" v-else>
+        <router-link v-if="canPublish" to="/crear-anuncio" class="text-center bg-slate-900 text-white py-2 rounded font-medium" @click="closeMenu">Publish Listing</router-link>
+        <button @click="handleLogout" class="text-center bg-red-50 text-red-600 py-2 rounded font-medium">Logout</button>
+      </div>
+    </div>
   </header>
 </template>

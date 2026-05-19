@@ -10,6 +10,10 @@ const username = ref('')
 const email = ref('')
 const password = ref('')
 const password2 = ref('')
+// We keep the exact backend values ('estudiante', 'propietario') to avoid breaking the DB, 
+// but we display them in English in the template.
+const rol = ref('estudiante')
+
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
@@ -19,12 +23,12 @@ const handleSubmit = async () => {
   success.value = ''
 
   if (!username.value || !email.value || !password.value || !password2.value) {
-    error.value = 'Rellena todos los campos.'
+    error.value = 'Please fill in all required fields.'
     return
   }
 
   if (password.value !== password2.value) {
-    error.value = 'Las contraseñas no coinciden.'
+    error.value = 'The passwords entered do not match.'
     return
   }
 
@@ -40,11 +44,16 @@ const handleSubmit = async () => {
         username: username.value,
         email: email.value,
         password: password.value,
-        password2: password2.value,
+        rol: rol.value 
       }),
     })
 
-    const data = await response.json()
+    let data = {}
+    try {
+      data = await response.json()
+    } catch {
+      data = {}
+    }
 
     if (!response.ok) {
       throw new Error(
@@ -53,17 +62,17 @@ const handleSubmit = async () => {
         data.username?.[0] ||
         data.email?.[0] ||
         data.password?.[0] ||
-        'No se pudo crear la cuenta.'
+        'Error processing registration in the system.'
       )
     }
 
-    success.value = 'Cuenta creada correctamente. Redirigiendo al login...'
+    success.value = 'Registration successful. Redirecting to login...'
 
     setTimeout(() => {
       router.push('/login')
-    }, 1200)
+    }, 1500)
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'An error occurred while trying to create the account.'
   } finally {
     loading.value = false
   }
@@ -71,130 +80,128 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <section class="max-w-7xl mx-auto px-4 py-16">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-      <div>
-        <div class="inline-flex items-center gap-2 bg-white/10 border border-white/10 rounded-full px-4 py-2 mb-5">
-          <span class="w-2 h-2 rounded-full bg-primary"></span>
-          <span class="text-sm text-gray-300">
-            Nueva cuenta
-          </span>
-        </div>
-
-        <h1 class="text-4xl md:text-6xl font-black tracking-tight mb-5">
-          Únete a
-          <span class="text-primary"> ErasmusStay</span>
+  <main class="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 bg-slate-50">
+    <div class="bg-white border border-slate-200 rounded-lg p-6 md:p-8 max-w-md w-full shadow-sm">
+      
+      <div class="mb-6 text-center">
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+          Create an account
         </h1>
-
-        <p class="text-lg text-gray-300 max-w-xl leading-relaxed">
-          Crea una cuenta para publicar anuncios, gestionar tu perfil y contactar con otros usuarios.
+        <p class="text-sm text-slate-500 mt-2">
+          Register for ErasmusStay to access housing management.
         </p>
       </div>
 
-      <div class="card-dark p-6 md:p-8 max-w-md w-full mx-auto">
-        <div class="mb-6">
-          <h2 class="text-2xl font-bold mb-2">
-            Crear cuenta
-          </h2>
-
-          <p class="text-gray-400 text-sm">
-            Introduce tus datos para registrarte.
-          </p>
+      <form class="space-y-4" @submit.prevent="handleSubmit">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">
+            Username
+          </label>
+          <input
+            v-model="username"
+            type="text"
+            autocomplete="username"
+            placeholder="e.g. student123"
+            required
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 disabled:opacity-50"
+            :disabled="loading"
+          />
         </div>
 
-        <form class="space-y-5" @submit.prevent="handleSubmit">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Usuario
-            </label>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">
+            Email address
+          </label>
+          <input
+            v-model="email"
+            type="email"
+            autocomplete="email"
+            placeholder="name@example.com"
+            required
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 disabled:opacity-50"
+            :disabled="loading"
+          />
+        </div>
 
-            <input
-              v-model="username"
-              type="text"
-              autocomplete="username"
-              placeholder="Tu usuario"
-              class="input-dark"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Email
-            </label>
-
-            <input
-              v-model="email"
-              type="email"
-              autocomplete="email"
-              placeholder="tu@email.com"
-              class="input-dark"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Contraseña
-            </label>
-
-            <input
-              v-model="password"
-              type="password"
-              autocomplete="new-password"
-              placeholder="••••••••"
-              class="input-dark"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Repite la contraseña
-            </label>
-
-            <input
-              v-model="password2"
-              type="password"
-              autocomplete="new-password"
-              placeholder="••••••••"
-              class="input-dark"
-            />
-          </div>
-
-          <div
-            v-if="error"
-            class="bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl p-3 text-sm"
-          >
-            {{ error }}
-          </div>
-
-          <div
-            v-if="success"
-            class="bg-green-500/10 border border-green-500/30 text-green-300 rounded-xl p-3 text-sm"
-          >
-            {{ success }}
-          </div>
-
-          <button
-            type="submit"
-            class="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">
+            Account Type
+          </label>
+          <select
+            v-model="rol"
+            required
+            class="w-full border border-slate-300 bg-white rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 disabled:opacity-50"
             :disabled="loading"
           >
-            <span v-if="loading">Creando cuenta...</span>
-            <span v-else>Crear cuenta</span>
-          </button>
-        </form>
-
-        <div class="mt-6 pt-6 border-t border-white/10">
-          <p class="text-sm text-gray-400">
-            ¿Ya tienes cuenta?
-            <router-link
-              to="/login"
-              class="text-primary hover:underline"
-            >
-              Inicia sesión
-            </router-link>
-          </p>
+            <option value="estudiante">Erasmus Student (Looking for housing)</option>
+            <option value="propietario">Property Owner (Listing housing)</option>
+          </select>
         </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">
+            Password
+          </label>
+          <input
+            v-model="password"
+            type="password"
+            autocomplete="new-password"
+            placeholder="••••••••"
+            required
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 disabled:opacity-50"
+            :disabled="loading"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">
+            Confirm Password
+          </label>
+          <input
+            v-model="password2"
+            type="password"
+            autocomplete="new-password"
+            placeholder="••••••••"
+            required
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 disabled:opacity-50"
+            :disabled="loading"
+          />
+        </div>
+
+        <div
+          v-if="error"
+          class="bg-red-50 border border-red-200 text-red-600 rounded p-3 text-xs"
+        >
+          {{ error }}
+        </div>
+
+        <div
+          v-if="success"
+          class="bg-green-50 border border-green-200 text-green-700 rounded p-3 text-xs font-medium"
+        >
+          {{ success }}
+        </div>
+
+        <button
+          type="submit"
+          class="w-full bg-slate-900 text-white text-sm font-bold py-2.5 rounded hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+          :disabled="loading"
+        >
+          {{ loading ? 'Creating account...' : 'Register' }}
+        </button>
+      </form>
+
+      <div class="mt-6 pt-6 border-t border-slate-200 flex flex-col gap-2 text-center">
+        <p class="text-sm text-slate-500">
+          Already have an active account? 
+          <router-link
+            to="/login"
+            class="text-blue-600 hover:text-blue-700 font-bold transition-colors ml-1"
+          >
+            Log in here
+          </router-link>
+        </p>
       </div>
     </div>
-  </section>
+  </main>
 </template>

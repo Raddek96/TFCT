@@ -1,7 +1,13 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+// Instancias y rutas
+const route = useRoute()
+const { user, isAuthenticated } = useAuth()
 
 const anuncios = ref([])
 const loading = ref(false)
@@ -12,29 +18,33 @@ const totalPages = ref(1)
 const nextUrl = ref(null)
 const previousUrl = ref(null)
 
+// Filtros inicializados con soporte para query params de la URL
 const filters = ref({
-  search: '',
-  tipo: '',
+  search: route.query.localizacion || '',
+  tipo_vivienda: '',
   precioMin: '',
-  precioMax: '',
-  wifi: false,
-  terraza: false,
-  garaje: false,
+  precioMax: route.query.precio_max || '',
+  wifi: route.query.wifi === 'true',
+  terraza: route.query.terraza === 'true',
+  garaje: route.query.garaje === 'true',
+  duracion: '' // Placeholder visual para seguir el wireframe
+})
+
+const anunciosFiltrados = computed(() => {
+  if (user.value?.rol === 'administrador') return anuncios.value
+  return anuncios.value.filter(anuncio => anuncio.aprobado && anuncio.publicado)
 })
 
 const buildQuery = () => {
   const params = new URLSearchParams()
-
-  if (filters.value.search) params.append('search', filters.value.search)
-  if (filters.value.tipo) params.append('tipo', filters.value.tipo)
+  if (filters.value.search) params.append('localizacion', filters.value.search)
+  if (filters.value.tipo_vivienda) params.append('tipo_vivienda', filters.value.tipo_vivienda)
   if (filters.value.precioMin) params.append('precio_min', filters.value.precioMin)
   if (filters.value.precioMax) params.append('precio_max', filters.value.precioMax)
   if (filters.value.wifi) params.append('wifi', 'true')
   if (filters.value.terraza) params.append('terraza', 'true')
   if (filters.value.garaje) params.append('garaje', 'true')
-
   params.append('page', currentPage.value)
-
   return params.toString()
 }
 
@@ -45,22 +55,14 @@ const fetchAnuncios = async (url = null) => {
   try {
     const endpoint = url || `${API_URL}/api/anuncios/?${buildQuery()}`
     const response = await fetch(endpoint)
-
-    if (!response.ok) {
-      throw new Error('No se pudieron cargar los anuncios')
-    }
+    if (!response.ok) throw new Error('No se pudieron cargar los alojamientos disponibles')
 
     const data = await response.json()
-
     anuncios.value = data.results || data
     nextUrl.value = data.next || null
     previousUrl.value = data.previous || null
 
-    if (data.count) {
-      totalPages.value = Math.ceil(data.count / 10) || 1
-    } else {
-      totalPages.value = 1
-    }
+    totalPages.value = data.count ? Math.ceil(data.count / 10) : 1
   } catch (err) {
     error.value = err.message
   } finally {
@@ -68,24 +70,23 @@ const fetchAnuncios = async (url = null) => {
   }
 }
 
-const applyFilters = () => {
+// Watcher para aplicar los filtros automáticamente como en el wireframe
+watch(filters, () => {
   currentPage.value = 1
   fetchAnuncios()
-}
+}, { deep: true })
 
 const clearFilters = () => {
   filters.value = {
     search: '',
-    tipo: '',
+    tipo_vivienda: '',
     precioMin: '',
     precioMax: '',
     wifi: false,
     terraza: false,
     garaje: false,
+    duracion: ''
   }
-
-  currentPage.value = 1
-  fetchAnuncios()
 }
 
 const goNext = () => {
@@ -100,372 +101,200 @@ const goPrevious = () => {
   fetchAnuncios(previousUrl.value)
 }
 
-const getInitial = (text) => {
-  return (text || 'E').charAt(0).toUpperCase()
-}
-
 onMounted(() => {
   fetchAnuncios()
 })
 </script>
 
 <template>
-  <section class="max-w-7xl mx-auto px-4 py-10">
-    <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center mb-10">
-      <div>
-        <div class="inline-flex items-center gap-2 bg-white/10 border border-white/10 rounded-full px-4 py-2 mb-5">
-          <span class="w-2 h-2 rounded-full bg-primary"></span>
-          <span class="text-sm text-gray-300">
-            Alojamientos para Erasmus en Malta
-          </span>
+  <main class="max-w-7xl mx-auto px-4 py-8 md:py-12">
+    
+    <div class="flex flex-col md:flex-row gap-8 items-start">
+      
+      <aside class="w-full md:w-64 flex-shrink-0 bg-white rounded border border-slate-200 p-6 md:sticky md:top-24">
+        
+        <div class="mb-8">
+          <h3 class="text-sm font-bold text-slate-900 mb-4">Price Range</h3>
+          <div class="flex items-center justify-between gap-2">
+            <input 
+              v-model="filters.precioMin" 
+              type="number" 
+              placeholder="Min €" 
+              class="w-1/2 border border-slate-300 rounded px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-slate-500"
+            />
+            <span class="text-slate-400">-</span>
+            <input 
+              v-model="filters.precioMax" 
+              type="number" 
+              placeholder="Max €" 
+              class="w-1/2 border border-slate-300 rounded px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-slate-500"
+            />
+          </div>
         </div>
 
-        <h1 class="text-4xl md:text-6xl font-black tracking-tight mb-5">
-          Encuentra tu piso ideal
-          <span class="text-primary">sin complicarte</span>
-        </h1>
-
-        <p class="text-lg text-gray-300 max-w-2xl leading-relaxed">
-          Busca habitaciones, estudios y pisos completos cerca de las zonas más populares de Malta.
-        </p>
-
-        <div class="flex flex-wrap gap-3 mt-7">
-          <a href="#listado" class="btn-primary">
-            Ver anuncios
-          </a>
-
-          <router-link to="/contacto" class="btn-secondary">
-            Contactar
-          </router-link>
+        <div class="mb-8">
+          <h3 class="text-sm font-bold text-slate-900 mb-4">Property Type</h3>
+          <div class="space-y-3">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="radio" v-model="filters.tipo_vivienda" value="habitacion" class="w-4 h-4 text-slate-900 border-slate-300 focus:ring-slate-900" />
+              <span class="text-sm text-slate-700">Room</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="radio" v-model="filters.tipo_vivienda" value="piso_completo" class="w-4 h-4 text-slate-900 border-slate-300 focus:ring-slate-900" />
+              <span class="text-sm text-slate-700">Full Flat</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="radio" v-model="filters.tipo_vivienda" value="estudio" class="w-4 h-4 text-slate-900 border-slate-300 focus:ring-slate-900" />
+              <span class="text-sm text-slate-700">Studio</span>
+            </label>
+          </div>
         </div>
-      </div>
 
-      <div class="card-dark p-5">
-        <div class="bg-gradient-to-br from-primary/30 to-blue-500/20 rounded-2xl p-5 border border-white/10">
-          <div class="bg-darkest/70 rounded-2xl p-5 backdrop-blur">
-            <p class="text-gray-400 text-sm mb-2">
-              Destacado
+        <div class="mb-8">
+          <h3 class="text-sm font-bold text-slate-900 mb-4">Services</h3>
+          <div class="space-y-3">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="filters.wifi" class="w-4 h-4 rounded text-slate-900 border-slate-300 focus:ring-slate-900" />
+              <span class="text-sm text-slate-700">Wifi</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="filters.terraza" class="w-4 h-4 rounded text-slate-900 border-slate-300 focus:ring-slate-900" />
+              <span class="text-sm text-slate-700">Terrace</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" v-model="filters.garaje" class="w-4 h-4 rounded text-slate-900 border-slate-300 focus:ring-slate-900" />
+              <span class="text-sm text-slate-700">Garage</span>
+            </label>
+          </div>
+        </div>
+
+        <button 
+          @click="clearFilters"
+          class="w-full bg-slate-100 text-slate-700 text-xs font-bold py-2.5 rounded hover:bg-slate-200 transition"
+        >
+          Clear All Filters
+        </button>
+      </aside>
+
+      <section class="flex-1 w-full">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900">
+              Available Housing <span v-if="filters.search">in {{ filters.search }}</span>
+            </h1>
+            <p class="text-sm text-slate-500 mt-1">
+              Showing {{ anunciosFiltrados.length }} results for your search
             </p>
+          </div>
+          
+          <div class="w-full sm:w-48 relative">
+            <input 
+              v-model="filters.search"
+              type="text" 
+              placeholder="Search by location..." 
+              class="w-full border border-slate-300 rounded pl-4 pr-10 py-2 text-sm text-slate-700 focus:outline-none focus:border-blue-500"
+            />
+            <div class="absolute right-3 top-2.5 text-slate-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+          </div>
+        </div>
 
-            <h2 class="text-2xl font-bold mb-3">
-              Vive tu Erasmus en Malta
-            </h2>
-
-            <p class="text-gray-300 text-sm mb-5">
-              Filtra por zona, precio, tipo de vivienda y servicios incluidos.
-            </p>
-
-            <div class="grid grid-cols-3 gap-3">
-              <div class="bg-white/10 rounded-xl p-3">
-                <p class="text-2xl font-black text-primary">
-                  {{ anuncios.length }}
-                </p>
-                <p class="text-xs text-gray-400">
-                  anuncios
-                </p>
-              </div>
-
-              <div class="bg-white/10 rounded-xl p-3">
-                <p class="text-2xl font-black text-primary">
-                  3
-                </p>
-                <p class="text-xs text-gray-400">
-                  filtros
-                </p>
-              </div>
-
-              <div class="bg-white/10 rounded-xl p-3">
-                <p class="text-2xl font-black text-primary">
-                  24/7
-                </p>
-                <p class="text-xs text-gray-400">
-                  acceso
-                </p>
+        <div v-if="loading" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div v-for="i in 4" :key="i" class="border border-slate-200 rounded animate-pulse">
+            <div class="h-48 bg-slate-200"></div>
+            <div class="p-5">
+              <div class="h-4 bg-slate-200 w-1/4 mb-3"></div>
+              <div class="h-5 bg-slate-200 w-3/4 mb-2"></div>
+              <div class="h-4 bg-slate-200 w-1/2 mb-6"></div>
+              <div class="flex justify-between">
+                <div class="h-6 bg-slate-200 w-1/3"></div>
+                <div class="h-8 bg-slate-200 w-1/4 rounded"></div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div
-      id="listado"
-      class="card-dark p-5 md:p-6 mb-8"
-    >
-      <div class="flex items-center justify-between gap-4 mb-5">
-        <div>
-          <h2 class="text-2xl font-bold">
-            Busca tu alojamiento
-          </h2>
-
-          <p class="text-sm text-gray-400 mt-1">
-            Ajusta los filtros para encontrar mejores resultados.
-          </p>
+        <div v-else-if="error" class="bg-red-50 text-red-600 p-4 rounded border border-red-200 text-sm">
+          {{ error }}
         </div>
 
-        <button
-          type="button"
-          class="hidden md:inline-flex btn-secondary py-2"
-          @click="clearFilters"
-        >
-          Limpiar
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">
-            Localización
-          </label>
-
-          <input
-            v-model="filters.search"
-            type="text"
-            placeholder="Sliema, Valletta..."
-            class="input-dark"
-            @keyup.enter="applyFilters"
-          />
-        </div>
-
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">
-            Tipo
-          </label>
-
-          <select
-            v-model="filters.tipo"
-            class="input-dark"
+        <div v-else-if="anunciosFiltrados.length" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <article 
+            v-for="anuncio in anunciosFiltrados" 
+            :key="anuncio.id"
+            class="bg-white border border-slate-200 rounded overflow-hidden flex flex-col"
           >
-            <option value="">Todos</option>
-            <option value="habitacion">Habitación</option>
-            <option value="piso">Piso completo</option>
-            <option value="estudio">Estudio</option>
-          </select>
+            <div class="h-48 bg-[#e5e7eb] flex items-center justify-center">
+              <svg class="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            </div>
+
+            <div class="p-5 flex-1 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">
+                    {{ (anuncio.tipo_vivienda || '').replace('_', ' ') }}
+                  </span>
+                  <div class="flex items-center gap-1 text-sm font-bold text-slate-800">
+                    <span class="text-slate-900">★</span> 
+                    {{ anuncio.valoraciones?.length ? (anuncio.valoraciones.reduce((acc, val) => acc + val.puntuacion, 0) / anuncio.valoraciones.length).toFixed(1) : 'Nuevo' }}
+                  </div>
+                </div>
+                
+                <h3 class="text-lg font-bold text-slate-900 mb-1 line-clamp-1">{{ anuncio.titulo }}</h3>
+                <p class="text-xs text-slate-500 flex items-center gap-1 mb-5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                  {{ anuncio.localizacion }}
+                </p>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
+                <p class="text-xl font-bold text-slate-900">
+                  {{ anuncio.precio_mes }}€ <span class="text-xs font-normal text-slate-500">/month</span>
+                </p>
+                <router-link 
+                  :to="`/anuncio/${anuncio.id}`"
+                  class="bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold py-2 px-4 rounded transition"
+                >
+                  View details
+                </router-link>
+              </div>
+            </div>
+          </article>
         </div>
 
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">
-            Precio mínimo
-          </label>
-
-          <input
-            v-model="filters.precioMin"
-            type="number"
-            min="0"
-            placeholder="300"
-            class="input-dark"
-            @keyup.enter="applyFilters"
-          />
+        <div v-else class="text-center py-20 bg-white border border-slate-200 rounded">
+          <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <h3 class="text-lg font-bold text-slate-700">No properties found</h3>
+          <p class="text-sm text-slate-500 mt-1">Try adjusting your search filters.</p>
         </div>
 
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">
-            Precio máximo
-          </label>
-
-          <input
-            v-model="filters.precioMax"
-            type="number"
-            min="0"
-            placeholder="900"
-            class="input-dark"
-            @keyup.enter="applyFilters"
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-5">
-        <div class="flex flex-wrap gap-3">
-          <label class="flex items-center gap-2 text-sm text-gray-300 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <input v-model="filters.wifi" type="checkbox" class="accent-[#e94560]" />
-            Wifi
-          </label>
-
-          <label class="flex items-center gap-2 text-sm text-gray-300 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <input v-model="filters.terraza" type="checkbox" class="accent-[#e94560]" />
-            Terraza
-          </label>
-
-          <label class="flex items-center gap-2 text-sm text-gray-300 bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <input v-model="filters.garaje" type="checkbox" class="accent-[#e94560]" />
-            Garaje
-          </label>
-        </div>
-
-        <div class="flex gap-3">
-          <button
-            type="button"
-            class="md:hidden btn-secondary flex-1"
-            @click="clearFilters"
+        <div v-if="totalPages > 1" class="flex justify-center items-center gap-2 mt-10">
+          <button 
+            @click="goPrevious" 
+            :disabled="!previousUrl"
+            class="w-8 h-8 flex items-center justify-center rounded border border-slate-300 text-slate-600 disabled:opacity-30 transition hover:bg-slate-50"
           >
-            Limpiar
+            &lt;
           </button>
+          
+          <span class="w-8 h-8 flex items-center justify-center rounded bg-slate-900 text-white font-medium text-sm">
+            {{ currentPage }}
+          </span>
+          <span class="text-slate-400 text-sm px-1">of</span>
+          <span class="text-slate-600 font-medium text-sm px-1">{{ totalPages }}</span>
 
-          <button
-            type="button"
-            class="btn-primary flex-1 md:flex-none"
-            @click="applyFilters"
+          <button 
+            @click="goNext" 
+            :disabled="!nextUrl"
+            class="w-8 h-8 flex items-center justify-center rounded border border-slate-300 text-slate-600 disabled:opacity-30 transition hover:bg-slate-50"
           >
-            Filtrar resultados
+            &gt;
           </button>
         </div>
-      </div>
+
+      </section>
     </div>
-
-    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div
-        v-for="item in 6"
-        :key="item"
-        class="card-dark p-5 animate-pulse"
-      >
-        <div class="h-40 bg-white/10 rounded-2xl mb-5"></div>
-        <div class="h-5 bg-white/10 rounded w-3/4 mb-3"></div>
-        <div class="h-5 bg-white/10 rounded w-1/3 mb-4"></div>
-        <div class="h-4 bg-white/10 rounded w-full mb-2"></div>
-        <div class="h-4 bg-white/10 rounded w-2/3"></div>
-      </div>
-    </div>
-
-    <div
-      v-else-if="error"
-      class="bg-red-500/10 border border-red-500/30 text-red-300 rounded-2xl p-5"
-    >
-      {{ error }}
-    </div>
-
-    <div
-      v-else-if="anuncios.length"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-    >
-      <article
-        v-for="anuncio in anuncios"
-        :key="anuncio.id"
-        class="group card-dark overflow-hidden hover:-translate-y-1 hover:shadow-primary/10 transition duration-300"
-      >
-        <div class="h-44 bg-gradient-to-br from-primary/30 via-[#0f3460]/60 to-[#16213e] relative overflow-hidden">
-          <div class="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top_right,_white,_transparent_30%)]"></div>
-
-          <div class="absolute top-4 left-4">
-            <span class="bg-black/35 backdrop-blur border border-white/10 text-white text-xs px-3 py-1 rounded-full">
-              {{ anuncio.tipo_vivienda || anuncio.tipo || 'Alojamiento' }}
-            </span>
-          </div>
-
-          <div class="absolute bottom-4 left-4 w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-            <span class="text-2xl font-black">
-              {{ getInitial(anuncio.localizacion || anuncio.location) }}
-            </span>
-          </div>
-        </div>
-
-        <div class="p-5">
-          <div class="mb-4">
-            <h2 class="text-xl font-bold mb-2 line-clamp-2 group-hover:text-primary">
-              {{ anuncio.titulo || anuncio.title || 'Anuncio sin título' }}
-            </h2>
-
-            <p class="text-gray-400">
-              📍 {{ anuncio.localizacion || anuncio.location || 'Ubicación no especificada' }}
-            </p>
-          </div>
-
-          <p class="text-3xl font-black text-primary mb-4">
-            {{ anuncio.precio || anuncio.price || 'Consultar' }}
-            <span
-              v-if="anuncio.precio || anuncio.price"
-              class="text-sm font-normal text-gray-400"
-            >
-              €/mes
-            </span>
-          </p>
-
-          <p class="text-sm text-gray-300 line-clamp-3 mb-5">
-            {{ anuncio.descripcion || anuncio.description || 'Sin descripción disponible.' }}
-          </p>
-
-          <div class="flex flex-wrap gap-2 mb-5">
-            <span
-              v-if="anuncio.wifi"
-              class="text-xs bg-white/10 border border-white/10 px-3 py-1 rounded-full text-gray-300"
-            >
-              Wifi
-            </span>
-
-            <span
-              v-if="anuncio.terraza"
-              class="text-xs bg-white/10 border border-white/10 px-3 py-1 rounded-full text-gray-300"
-            >
-              Terraza
-            </span>
-
-            <span
-              v-if="anuncio.garaje"
-              class="text-xs bg-white/10 border border-white/10 px-3 py-1 rounded-full text-gray-300"
-            >
-              Garaje
-            </span>
-          </div>
-
-          <router-link
-            :to="`/anuncio/${anuncio.id}`"
-            class="inline-flex items-center justify-center w-full btn-primary"
-          >
-            Ver detalle
-          </router-link>
-        </div>
-      </article>
-    </div>
-
-    <div
-      v-else
-      class="card-dark p-10 text-center"
-    >
-      <div class="w-16 h-16 mx-auto rounded-2xl bg-white/10 flex items-center justify-center mb-4">
-        <span class="text-3xl">🏠</span>
-      </div>
-
-      <h2 class="text-2xl font-bold mb-2">
-        No se encontraron anuncios
-      </h2>
-
-      <p class="text-gray-400 mb-5">
-        Prueba cambiando los filtros de búsqueda.
-      </p>
-
-      <button
-        type="button"
-        class="btn-primary"
-        @click="clearFilters"
-      >
-        Limpiar filtros
-      </button>
-    </div>
-
-    <div
-      v-if="!loading && !error && anuncios.length"
-      class="flex items-center justify-center gap-4 mt-10"
-    >
-      <button
-        type="button"
-        class="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed"
-        :disabled="!previousUrl"
-        @click="goPrevious"
-      >
-        Anterior
-      </button>
-
-      <span class="text-sm text-gray-400">
-        Página {{ currentPage }} de {{ totalPages }}
-      </span>
-
-      <button
-        type="button"
-        class="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed"
-        :disabled="!nextUrl"
-        @click="goNext"
-      >
-        Siguiente
-      </button>
-    </div>
-  </section>
+  </main>
 </template>

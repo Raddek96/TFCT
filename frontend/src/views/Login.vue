@@ -17,7 +17,7 @@ const handleSubmit = async () => {
   error.value = ''
 
   if (!username.value || !password.value) {
-    error.value = 'Introduce usuario y contraseña.'
+    error.value = 'Please enter your username and password.'
     return
   }
 
@@ -36,7 +36,6 @@ const handleSubmit = async () => {
     })
 
     let data = {}
-
     try {
       data = await response.json()
     } catch {
@@ -48,25 +47,26 @@ const handleSubmit = async () => {
         data.detail ||
         data.error ||
         data.non_field_errors?.[0] ||
-        'Credenciales incorrectas.'
+        'Invalid login credentials.'
       )
     }
 
-    const token = data.token || data.key || data.access
+    const token = data.token
 
     if (!token) {
-      throw new Error('El backend no devolvió ningún token.')
+      throw new Error('Authentication failed while processing the security token.')
     }
 
     login(token, data.user || {
+      id: data.user?.id,
       username: username.value,
-      email: data.email || '',
-      rol: data.rol || '',
+      email: data.user?.email || '',
+      rol: data.user?.rol || 'estudiante',
     })
 
     router.push('/')
   } catch (err) {
-    error.value = err.message || 'Error al iniciar sesión.'
+    error.value = err.message || 'System error during login.'
   } finally {
     loading.value = false
   }
@@ -74,121 +74,83 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <section class="max-w-7xl mx-auto px-4 py-16">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-      <div>
-        <div class="inline-flex items-center gap-2 bg-white/10 border border-white/10 rounded-full px-4 py-2 mb-5">
-          <span class="w-2 h-2 rounded-full bg-primary"></span>
-          <span class="text-sm text-gray-300">
-            Acceso privado
-          </span>
-        </div>
-
-        <h1 class="text-4xl md:text-6xl font-black tracking-tight mb-5">
-          Accede a tu cuenta de
-          <span class="text-primary"> ErasmusStay</span>
+  <main class="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12 bg-slate-50">
+    <div class="bg-white border border-slate-200 rounded-lg p-6 md:p-8 max-w-md w-full shadow-sm">
+      
+      <div class="mb-6 text-center">
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+          Welcome back
         </h1>
-
-        <p class="text-lg text-gray-300 max-w-xl leading-relaxed">
-          Inicia sesión para publicar anuncios, gestionar alojamientos y contactar con otros usuarios.
+        <p class="text-sm text-slate-500 mt-2">
+          Sign in to ErasmusStay to manage your accommodations.
         </p>
-
-        <div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-xl">
-          <div class="card-dark p-4">
-            <p class="text-2xl font-black text-primary">🏠</p>
-            <p class="text-sm text-gray-300 mt-2">Publica anuncios</p>
-          </div>
-
-          <div class="card-dark p-4">
-            <p class="text-2xl font-black text-primary">🔐</p>
-            <p class="text-sm text-gray-300 mt-2">Acceso seguro</p>
-          </div>
-
-          <div class="card-dark p-4">
-            <p class="text-2xl font-black text-primary">🌍</p>
-            <p class="text-sm text-gray-300 mt-2">Erasmus Malta</p>
-          </div>
-        </div>
       </div>
 
-      <div class="card-dark p-6 md:p-8 max-w-md w-full mx-auto">
-        <div class="mb-6">
-          <h2 class="text-2xl font-bold mb-2">
-            Iniciar sesión
-          </h2>
-
-          <p class="text-gray-400 text-sm">
-            Introduce tus credenciales para continuar.
-          </p>
-        </div>
-
-        <form class="space-y-5" @submit.prevent="handleSubmit">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Usuario
-            </label>
-
-            <input
-              v-model="username"
-              type="text"
-              autocomplete="username"
-              placeholder="Tu usuario"
-              class="input-dark"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">
-              Contraseña
-            </label>
-
-            <input
-              v-model="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="••••••••"
-              class="input-dark"
-            />
-          </div>
-
-          <div
-            v-if="error"
-            class="bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl p-3 text-sm"
-          >
-            {{ error }}
-          </div>
-
-          <button
-            type="submit"
-            class="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
+      <form class="space-y-4" @submit.prevent="handleSubmit">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">
+            Username
+          </label>
+          <input
+            v-model="username"
+            type="text"
+            autocomplete="username"
+            placeholder="Your username"
+            required
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 disabled:opacity-50"
             :disabled="loading"
-          >
-            <span v-if="loading">Entrando...</span>
-            <span v-else>Entrar</span>
-          </button>
-        </form>
-
-        <div class="mt-6 pt-6 border-t border-white/10">
-          <p class="text-sm text-gray-400">
-            ¿Todavía no tienes cuenta?
-            <router-link
-              to="/register"
-              class="text-primary hover:underline"
-            >
-              Crear cuenta
-            </router-link>
-          </p>
+          />
         </div>
 
-        <div class="mt-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">
+            Password
+          </label>
+          <input
+            v-model="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="••••••••"
+            required
+            class="w-full border border-slate-300 rounded px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-900 disabled:opacity-50"
+            :disabled="loading"
+          />
+        </div>
+
+        <div
+          v-if="error"
+          class="bg-red-50 border border-red-200 text-red-600 rounded p-3 text-xs"
+        >
+          {{ error }}
+        </div>
+
+        <button
+          type="submit"
+          class="w-full bg-slate-900 text-white text-sm font-bold py-2.5 rounded hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+          :disabled="loading"
+        >
+          {{ loading ? 'Verifying credentials...' : 'Sign in' }}
+        </button>
+      </form>
+
+      <div class="mt-6 pt-6 border-t border-slate-200 flex flex-col gap-2 text-center">
+        <p class="text-sm text-slate-500">
+          Don't have an account yet? 
           <router-link
-            to="/"
-            class="text-sm text-gray-500 hover:text-primary"
+            to="/register"
+            class="text-blue-600 hover:text-blue-700 font-bold transition-colors ml-1"
           >
-            ← Volver al inicio
+            Register here
           </router-link>
-        </div>
+        </p>
+        
+        <router-link
+          to="/"
+          class="text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors mt-4 block"
+        >
+          ← Back to listings
+        </router-link>
       </div>
     </div>
-  </section>
+  </main>
 </template>
