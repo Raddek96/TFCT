@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const user = ref(null)
 const isAuthenticated = ref(false)
@@ -70,6 +70,13 @@ export function useAuth() {
     }
   }
 
+  const updateLocalUser = (newUserData) => {
+    user.value = {
+      ...(user.value || {}),
+      ...newUserData,
+    }
+  }
+
   return {
     user,
     isAuthenticated,
@@ -79,5 +86,6 @@ export function useAuth() {
     login,
     logout,
     getAuthHeaders,
+    updateLocalUser,
   }
 }
