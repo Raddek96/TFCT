@@ -1,13 +1,20 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.static import serve as static_serve
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("housing.urls")),
 ]
 
-# En desarrollo y en el despliegue de Railway servimos los archivos subidos
-# desde Django para que las imágenes de anuncios sean accesibles por /media/.
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Servir archivos media en Railway.
+# Esto se usa para que las imágenes subidas por usuarios sean accesibles desde /media/.
+# Para un proyecto grande sería mejor usar S3 o un bucket, pero para Railway/TFC funciona.
+urlpatterns += [
+    re_path(
+        r"^media/(?P<path>.*)$",
+        static_serve,
+        {"document_root": settings.MEDIA_ROOT},
+    ),
+]
