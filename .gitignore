@@ -18,3 +18,9 @@ venv/
 .vscode/
 .idea/
 *.swp
+
+# Django static files
+backend/src/staticfiles/
+staticfiles/
+*.css.gz
+staticfiles.json
